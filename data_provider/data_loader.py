@@ -34,8 +34,13 @@ class Dataset_Custom(Dataset):
             self.label_len = size[1]
             self.pred_len = size[2]
         # init
-        assert flag in ['train', 'test', 'val']
-        type_map = {'train': 0, 'val': 1, 'test': 2}
+        if args.conformal:
+            assert flag in ['train', 'calibration', 'test', 'val']
+            type_map = {'train': 0, 'calibration': 1, 'val': 2, 'test': 3}
+        else:
+            assert flag in ['train', 'test', 'val']
+            type_map = {'train': 0, 'val': 1, 'test': 2}
+
         self.set_type = type_map[flag]
 
         self.features = features
@@ -61,7 +66,7 @@ class Dataset_Custom(Dataset):
         cols.remove(self.target)
         cols.remove('date')
         if self.args.use_closedllm==0:
-            text_name='Final_Search_'+str(self.args.text_len)
+            text_name='Final_Search_'+str(self.args.text_len)###what is the text_name here?(Q from Zhao)
         else:
             print("!!!!!!!!!!!!Using output of closed source llm and Bert as encoder!!!!!!!!!!!!!!!")
             text_name="Final_Output"
@@ -69,8 +74,14 @@ class Dataset_Custom(Dataset):
         num_train = int(len(df_raw) * 0.7)
         num_test = int(len(df_raw) * 0.2)
         num_vali = len(df_raw) - num_train - num_test
-        border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
-        border2s = [num_train, num_train + num_vali, len(df_raw)]
+        if self.args.conformal:
+            num_train = int(len(df_raw) * 0.7 * (1-self.args.cali_ratio))
+            num_cali = int(len(df_raw) * 0.7 * self.args.cali_ratio)
+            border1s = [0, num_train - self.seq_len, num_train + num_cali - self.seq_len, len(df_raw) - num_test - self.seq_len]
+            border2s = [num_train, num_train + num_cali, num_train + num_cali + num_vali, len(df_raw)]
+        else:
+            border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
+            border2s = [num_train, num_train + num_vali, len(df_raw)]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
 
@@ -166,7 +177,6 @@ class Dataset_Custom(Dataset):
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
-
 
 class Dataset_M4(Dataset):
     def __init__(self, args, root_path, flag='pred', size=None,
