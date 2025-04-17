@@ -15,6 +15,7 @@ import os
 import time
 import warnings
 import numpy as np
+import csv
 from utils.dtw_metric import dtw,accelerated_dtw
 from utils.augmentation import run_augmentation,run_augmentation_single
 import pandas as pd
@@ -756,15 +757,46 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
-        f = open(self.args.save_name, 'a')
-        f.write(setting + "  \n")
-        f.write('mse:{}, mae:{}, rmse:{}, mape:{}, mspe:{}'.format(mse, mae, rmse, mape, mspe))
-        f.write('\n')
-        f.write('\n')
-        f.close()
+        # f = open(self.args.save_name, 'a')
+        # f.write(setting + "  \n")
+        # f.write('mse:{}, mae:{}, rmse:{}, mape:{}, mspe:{}'.format(mse, mae, rmse, mape, mspe))
+        # f.write('\n')
+        # f.write('\n')
+        # f.close()
+        #
+        # np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
+        # np.save(folder_path + 'pred.npy', preds)
+        # np.save(folder_path + 'true.npy', trues)
+        result_file = self.args.save_name
+        dir_name = os.path.dirname(result_file)
 
-        np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
-        np.save(folder_path + 'pred.npy', preds)
-        np.save(folder_path + 'true.npy', trues)
+        # Only create folder if path is non-empty
+        if dir_name and not os.path.exists(dir_name):
+            os.makedirs(dir_name, exist_ok=True)
+
+        # Check if file exists to decide if we need header
+        file_exists = os.path.isfile(result_file)
+
+        # Prepare data
+        result_data = {
+            'task': self.args.task_name,
+            'model': self.args.model,
+            'dataset': self.args.root_path,
+            'prompt_weight': self.args.prompt_weight,
+            'pred_len': self.args.pred_len,
+            'mse': round(mse, 3),
+            'mae': round(mae, 3),
+            'rmse': round(rmse, 3),
+            'mape': round(mape, 3),
+            'mspe': round(mspe, 3)
+        }
+
+        # Write into CSV
+        with open(result_file, mode='a', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=result_data.keys())
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(result_data)
 
         return mse
+
