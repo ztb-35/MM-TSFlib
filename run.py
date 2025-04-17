@@ -238,7 +238,7 @@ if __name__ == '__main__':
             result=exp.test(setting, test=1)
             torch.cuda.empty_cache()
             end_time = datetime.now()
-            print(f" Duration: {end_time - start_time}")
+            print(f"🕒 Duration: {end_time - start_time}")
 
     else:
         ii = 0
@@ -269,5 +269,5 @@ if __name__ == '__main__':
 
         torch.cuda.empty_cache()
         end_time = datetime.now()
-        print(f" Duration: {end_time - start_time}")
+        print(f"🕒 Duration: {end_time - start_time}")
     
