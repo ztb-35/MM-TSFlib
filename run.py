@@ -1,6 +1,8 @@
 import argparse
 import os
 import torch
+
+from exp.conformal_prediction import Conformal_Prediction
 from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
 from exp.exp_imputation import Exp_Imputation
 from exp.exp_short_term_forecasting import Exp_Short_Term_Forecast
@@ -12,7 +14,7 @@ import numpy as np
 import numpy as np
 import pandas as pd
 import re
-
+from datetime import datetime
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 if __name__ == '__main__':
@@ -20,17 +22,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='TimesNet')
 
     # basic config
-    parser.add_argument('--task_name', type=str, required=True, default='long_term_forecast',
-                        help='task name, options:[long_term_forecast, short_term_forecast, imputation, classification, anomaly_detection]')
-    parser.add_argument('--is_training', type=int, required=True, default=1, help='status')
-    parser.add_argument('--model_id', type=str, required=True, default='test', help='model id')
-    parser.add_argument('--model', type=str, required=True, default='Autoformer',
+    parser.add_argument('--task_name', type=str, default='conformal_prediction',
+                        help='task name, options:[long_term_forecast, short_term_forecast, imputation, classification, anomaly_detection, conformal_prediction]')
+    parser.add_argument('--is_training', type=int, default=1, help='status')
+    parser.add_argument('--model_id', type=str, default='test', help='model id')
+    parser.add_argument('--model', type=str, default='Informer',
                         help='model name, options: [Autoformer, Transformer, TimesNet]')
 
     # data loader
-    parser.add_argument('--data', type=str, required=True, default='ETTm1', help='dataset type')
-    parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
-    parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')
+    parser.add_argument('--data', type=str, default='custom', help='dataset type')
+    parser.add_argument('--root_path', type=str, default='./data/Algriculture/', help='root path of the data file')
+    parser.add_argument('--data_path', type=str, default='US_RetailBroilerComposite_Month.csv', help='data file')
     parser.add_argument('--features', type=str, default='M',
                         help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
     parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
@@ -39,9 +41,9 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 
     # forecasting task
-    parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
-    parser.add_argument('--label_len', type=int, default=48, help='start token length')
-    parser.add_argument('--pred_len', type=int, default=96, help='prediction sequence length')
+    parser.add_argument('--seq_len', type=int, default=8, help='input sequence length')
+    parser.add_argument('--label_len', type=int, default=4, help='start token length')
+    parser.add_argument('--pred_len', type=int, default=12, help='prediction sequence length')
     parser.add_argument('--seasonal_patterns', type=str, default='Monthly', help='subset for M4')
     parser.add_argument('--inverse', action='store_true', help='inverse output data', default=False)
 
@@ -89,8 +91,8 @@ if __name__ == '__main__':
     # optimization
     parser.add_argument('--num_workers', type=int, default=10, help='data loader num workers')
     parser.add_argument('--itr', type=int, default=1, help='experiments times')
-    parser.add_argument('--train_epochs', type=int, default=10, help='train epochs')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
+    parser.add_argument('--train_epochs', type=int, default=1, help='train epochs')
+    parser.add_argument('--batch_size', type=int, default=32, help='default=32, batch size of train input data')
     parser.add_argument('--patience', type=int, default=5, help='early stopping patience')
     parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
     parser.add_argument('--des', type=str, default='test', help='exp description')
@@ -102,7 +104,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
     parser.add_argument('--gpu', type=int, default=0, help='gpu')
     parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
-    parser.add_argument('--devices', type=str, default='0,1,2,3', help='device ids of multile gpus')
+    parser.add_argument('--devices', type=str, default='0,1', help='device ids of multile gpus')
 
     # de-stationary projector params
     parser.add_argument('--p_hidden_dims', type=int, nargs='+', default=[128, 128],
@@ -110,15 +112,15 @@ if __name__ == '__main__':
     parser.add_argument('--p_hidden_layers', type=int, default=2, help='number of hidden layers in projector')
 
     #  new pars
-    parser.add_argument('--llm_model', type=str, default='BERT', help='LLM model') # LLAMA2, LLAMA3, GPT2, BERT, GPT2M, GPT2L, GPT2XL, Doc2Vec, ClosedLLM
+    parser.add_argument('--llm_model', type=str, default='GPT2', help='LLM model') # LLAMA2, LLAMA3, GPT2, BERT, GPT2M, GPT2L, GPT2XL, Doc2Vec, ClosedLLM
     parser.add_argument('--llm_dim', type=int, default='768', help='LLM model dimension')# LLama7b:4096; GPT2-small:768; BERT-base:768
     parser.add_argument('--llm_layers', type=int, default=6)
     parser.add_argument('--text_path', type=str, default="None")
     parser.add_argument('--type_tag', type=str, default="#F#")
-    parser.add_argument('--text_len', type=int, default=3)
+    parser.add_argument('--text_len', type=int, default=4)
     parser.add_argument('--learning_rate2', type=float, default=1e-2, help='mlp learning rate')
     parser.add_argument('--learning_rate3', type=float, default=1e-3, help='proj learning rate')
-    parser.add_argument('--prompt_weight', type=float, default=0.01, help='prompt weight')#please tune this hyperparameter for combining
+    parser.add_argument('--prompt_weight', type=float, default=0.0, help='default in multi-modal is 0.01, set it as 0.0 to use uni-modality,prompt weight')#please tune this hyperparameter for combining
     parser.add_argument('--pool_type', type=str, default='avg', help='pooling type') #avg min max attention
     parser.add_argument('--date_name', type=str, default='end_date', help='matching date name in csv') #mlp linear
     parser.add_argument('--addHisRate', type=float, default=0.5, help='add historical rate')
@@ -129,8 +131,17 @@ if __name__ == '__main__':
     parser.add_argument('--use_fullmodel', type=int, default=0, help='use full model or just encoder')
     parser.add_argument('--use_closedllm', type=int, default=0, help='use closedllm or not')    
     parser.add_argument('--huggingface_token', type=str, help='your token of huggingface;need for llama3')
+    parser.add_argument('--conformal', action='store_true', default=True,
+                        help='using conformal prediction for uncertainty quantification')
+    parser.add_argument('--error_rate', type=float, default=0.1,
+                        help='using conformal prediction for uncertainty quantification')
+    parser.add_argument('--cali_ratio', type=float, default=0.2,
+                        help='calibration data ratio in original training data')
     args = parser.parse_args()
-    domain= re.search(r'/([^/]+)$', args.root_path).group(1)
+    #domain= re.search(r'/([^/]+)$', args.root_path).group(1)
+    match = re.search(r'/([^/\\]+)[/\\]?$|([^/\\]+)$', args.root_path or "")
+    domain = match.group(1) if match else "unknown"
+    start_time = datetime.now()
     print("now running on domain {} model {} ".format(domain,args.model))
     if args.model=="LightTS":   
         if args.pred_len<args.seq_len:
@@ -191,6 +202,8 @@ if __name__ == '__main__':
         Exp = Exp_Anomaly_Detection
     elif args.task_name == 'classification':
         Exp = Exp_Classification
+    elif args.task_name == 'conformal_prediction':
+        Exp = Conformal_Prediction
     else:
         Exp = Exp_Long_Term_Forecast
 
@@ -221,10 +234,12 @@ if __name__ == '__main__':
 
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
             exp.train(setting)
-
             print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-            now_mse=exp.test(setting, test=1)
+            result=exp.test(setting, test=1)
             torch.cuda.empty_cache()
+            end_time = datetime.now()
+            print(f" Duration: {end_time - start_time}")
+
     else:
         ii = 0
         setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_expand{}_dc{}_fc{}_eb{}_dt{}_{}_{}'.format(
@@ -250,7 +265,9 @@ if __name__ == '__main__':
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-        now_mse=exp.test(setting, test=1)
+        result=exp.test(setting, test=1)
 
         torch.cuda.empty_cache()
+        end_time = datetime.now()
+        print(f" Duration: {end_time - start_time}")
     
