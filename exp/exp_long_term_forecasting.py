@@ -476,6 +476,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
     def train(self, setting):
         train_data, train_loader = self._get_data(flag='train')
+
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
 
@@ -533,7 +534,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     prompt_emb =self.llm_model(inputs_embeds=prompt_embeddings).last_hidden_state
                 else:
                     prompt_emb=prompt_embeddings 
-                prompt_emb = self.mlp(prompt_emb) 
+                prompt_emb = self.mlp(prompt_emb) #embedding of the text modal(news)
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
@@ -575,7 +576,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         prompt_emb = weighted_prompt_emb.unsqueeze(-1)  
                 else:
                     prompt_emb=prompt_emb.unsqueeze(-1)
-                prompt_y=norm(prompt_emb)+prior_y
+                prompt_y=norm(prompt_emb)+prior_y###why add the prior_y here?(Q from Zhao)
                 outputs=(1-self.prompt_weight)*outputs+self.prompt_weight*prompt_y
                 
                 
@@ -734,8 +735,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
                     visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
 
-        preds = np.array(preds)
-        trues = np.array(trues)
+        #preds = np.array(preds)
+        #trues = np.array(trues)
+        preds = np.concatenate(preds, axis=0)
+        trues = np.concatenate(trues, axis=0)
         print('test shape:', preds.shape, trues.shape)
         preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
